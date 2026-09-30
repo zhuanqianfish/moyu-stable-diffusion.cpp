@@ -9,6 +9,7 @@
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -19,12 +20,13 @@ TMP = os.path.join(TUT, "_seg")
 OUT = os.path.join(TUT, "教程视频.mp4")
 
 W, H = 1920, 1080
-BG = "0x0e1014"          # 与界面深色背景一致，加边不留白
+IMG_H = 990             # 画面占用的高度，底部 90px 留给字幕条
+BG = "0x0e1014"         # 与界面深色背景一致，加边不留白
 FPS = 30
 
 
-def run(cmd):
-    r = subprocess.run(cmd, capture_output=True)
+def run(cmd, cwd=None):
+    r = subprocess.run(cmd, capture_output=True, cwd=cwd)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-800:])
 
@@ -68,8 +70,8 @@ def main():
             "ffmpeg", "-y", "-loglevel", "error",
             "-loop", "1", "-i", img,
             "-i", aud,
-            "-vf", (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
-                    f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={BG},format=yuv420p"),
+            "-vf", (f"scale={W}:{IMG_H}:force_original_aspect_ratio=decrease,"
+                    f"pad={W}:{H}:(ow-iw)/2:0:color={BG},format=yuv420p"),
             "-c:v", "libx264", "-preset", "medium", "-crf", "20",
             "-tune", "stillimage", "-r", str(FPS),
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
@@ -82,8 +84,33 @@ def main():
         for s in segs:
             fh.write(f"file '{s.replace(chr(92), '/')}'\n")
     print("\n合并中…")
+    raw = os.path.join(TMP, "merged.mp4")
     run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-         "-i", lst, "-c", "copy", OUT])
+         "-i", lst, "-c", "copy", raw])
+
+    # ---- 烧录字幕 ----
+    srt = os.path.join(TUT, "字幕.srt")
+    if os.path.exists(srt):
+        # ⚠️ 字幕滤镜里 Windows 盘符的冒号要转义，中文文件名也容易出问题。
+        # 最稳的办法：把 srt 复制成纯 ASCII 名，并在该目录下执行（用相对路径）。
+        burn_srt = os.path.join(TUT, "subs.srt")
+        shutil.copyfile(srt, burn_srt)
+        style = ("FontName=Microsoft YaHei,FontSize=20,"
+                 "PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,"
+                 "BorderStyle=1,Outline=2,Shadow=1,"
+                 "Alignment=2,MarginV=24")
+        print("烧录字幕…")
+        try:
+            run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw,
+                 "-vf", f"subtitles=subs.srt:force_style='{style}'",
+                 "-c:v", "libx264", "-preset", "medium", "-crf", "21",
+                 "-c:a", "copy", os.path.basename(OUT)], cwd=TUT)
+        finally:
+            if os.path.exists(burn_srt):
+                os.remove(burn_srt)
+    else:
+        print(f"[提示] 未找到 {srt}，输出无字幕版本")
+        shutil.copyfile(raw, OUT)
 
     dur = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
