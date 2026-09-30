@@ -36,6 +36,10 @@ python scripts/setup.py
 start.bat            # 或 .\start.ps1 / python webui/server.py
 ```
 
+> 如果模型已经在别处（在 `model_path.json` 里配好目录），第 1 步可只装引擎：
+> `python scripts/setup.py --skip-model`。启动脚本**不检查本地 `models/` 目录**，
+> 直接读取 `model_path.json` 中的搜索路径。
+
 ## 模型路径配置
 
 所有模型搜索目录统一放在**项目根目录的 `model_path.json`**：

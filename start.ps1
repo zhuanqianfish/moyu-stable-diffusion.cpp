@@ -27,20 +27,13 @@ if (-not (Test-Path $serverExe)) {
     exit 1
 }
 
-# ---------- 2. 检查模型 ----------
-$modelDir = Join-Path $Root "models"
-$models = @()
-if (Test-Path $modelDir) {
-    $models = Get-ChildItem $modelDir -File |
-              Where-Object { $_.Extension -in ".safetensors", ".ckpt", ".gguf", ".sft", ".pt" }
+# ---------- 2. 模型路径来自 model_path.json（不再检查本地 models\ 目录） ----------
+$modelPathFile = Join-Path $Root "model_path.json"
+if (Test-Path $modelPathFile) {
+    Write-Host "[信息] 模型路径配置: model_path.json" -ForegroundColor Green
+} else {
+    Write-Host "[提示] 未找到 model_path.json，将回退到 webui\config.json 的 paths" -ForegroundColor Yellow
 }
-if ($models.Count -eq 0) {
-    Write-Host "[错误] models\ 目录下没有任何模型文件。" -ForegroundColor Red
-    Write-Host "       请执行: python .\scripts\setup.py --model"
-    exit 1
-}
-Write-Host "[信息] 检测到模型 $($models.Count) 个：" -ForegroundColor Green
-$models | ForEach-Object { Write-Host ("       - {0}  ({1:N1} GB)" -f $_.Name, ($_.Length / 1GB)) }
 Write-Host ""
 
 # ---------- 3. 查找 Python ----------

@@ -20,16 +20,12 @@ if [ ! -f "$ROOT/bin/sd-server.exe" ] && [ ! -f "$ROOT/bin/sd-server" ]; then
   exit 1
 fi
 
-# ---------- 2. 检查模型 ----------
-shopt -s nullglob
-MODELS=("$ROOT"/models/*.safetensors "$ROOT"/models/*.ckpt "$ROOT"/models/*.gguf)
-shopt -u nullglob
-if [ ${#MODELS[@]} -eq 0 ]; then
-  echo "[错误] models/ 目录下没有任何模型文件。"
-  echo "       请执行: python scripts/setup.py --model"
-  exit 1
+# ---------- 2. 模型路径来自 model_path.json（不再检查本地 models/ 目录） ----------
+if [ -f "$ROOT/model_path.json" ]; then
+  echo "[信息] 模型路径配置: model_path.json"
+else
+  echo "[提示] 未找到 model_path.json，将回退到 webui/config.json 的 paths"
 fi
-echo "[信息] 检测到模型: ${#MODELS[@]} 个"
 
 # ---------- 3. 查找 Python ----------
 PY=""

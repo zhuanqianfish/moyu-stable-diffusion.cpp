@@ -26,13 +26,13 @@ echo.
 rem ---------- 1. check the inference engine ----------
 if not exist "%ROOT%\bin\sd-server.exe" goto NO_ENGINE
 
-rem ---------- 2. check for at least one model ----------
-set "HAVE_MODEL="
-if exist "%ROOT%\models\*.safetensors" set "HAVE_MODEL=1"
-if exist "%ROOT%\models\*.ckpt"        set "HAVE_MODEL=1"
-if exist "%ROOT%\models\*.gguf"        set "HAVE_MODEL=1"
-if exist "%ROOT%\models\*.sft"         set "HAVE_MODEL=1"
-if not defined HAVE_MODEL goto NO_MODEL
+rem ---------- 2. model search paths come from model_path.json ----------
+rem  (no local models\ check: models may live in any configured directory)
+if exist "%ROOT%\model_path.json" (
+    echo [INFO] Model paths : model_path.json
+) else (
+    echo [WARN] model_path.json not found, falling back to webui\config.json
+)
 
 rem ---------- 3. locate Python 3 ----------
 set "PYEXE="
@@ -103,16 +103,6 @@ echo [ERROR] Inference engine not found: bin\sd-server.exe
 echo.
 echo         Run the setup script first:
 echo             python "%ROOT%\scripts\setup.py"
-echo.
-popd
-pause
-exit /b 1
-
-:NO_MODEL
-echo [ERROR] No model file found in the models\ directory.
-echo.
-echo         Download the default model (Stable Diffusion 1.5):
-echo             python "%ROOT%\scripts\setup.py" --model
 echo.
 popd
 pause
