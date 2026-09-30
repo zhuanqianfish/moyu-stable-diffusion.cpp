@@ -836,21 +836,87 @@ class Backend:
             s.settimeout(timeout)
             return s.connect_ex((self.host, self.port)) == 0
 
+    def _port_owner_pids(self):
+        """找出正在监听后端端口的进程 PID（可能有多个）。"""
+        pids = set()
+        try:
+            # 注意：中文 Windows 上 netstat 输出是 GBK，不能直接用 text=True
+            # （按 UTF-8 解码会抛 UnicodeDecodeError，结果静默变空）。
+            # 这里按字节取回再容错解码——我们只关心 ASCII 部分（IP/端口/PID）。
+            raw = subprocess.run(
+                ["netstat", "-ano"], capture_output=True, timeout=15,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+            out = (raw or b"").decode("utf-8", "replace")
+        except Exception as exc:
+            log(f"[backend] netstat 失败: {exc}")
+            return pids
+        want = f":{self.port}"
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) < 5 or parts[0].upper() != "TCP":
+                continue
+            if parts[3].upper() != "LISTENING" or not parts[1].endswith(want):
+                continue
+            if parts[4].isdigit():
+                pids.add(int(parts[4]))
+        return pids
+
+    @staticmethod
+    def _pid_image_name(pid):
+        """取进程映像名，用于确认「这个 PID 确实是 sd-server/sd-cli」。"""
+        try:
+            raw = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True, timeout=15,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+            out = (raw or b"").decode("utf-8", "replace")
+        except Exception:
+            return ""
+        m = re.match(r'\s*"([^"]+)"', out)
+        return (m.group(1) if m else "").lower()
+
     def cleanup_stale(self):
+        """清理占用后端端口的残留 sd-server。
+
+        ⚠️ 这里**不能**因为「端口有人响应」就跳过清理。上一个 webui 进程可能
+        已经死了，它留下的 sd-server 仍在监听端口、也仍能响应探测，但它的
+        stdout 管道已经没人读，缓冲区写满后就会卡死。此时若再起一个新的
+        sd-server，两个进程会同时监听同一端口（Windows 允许这种绑定），
+        请求随机落向其中一个 —— 表现为「生成时好时坏 / 直接失败」。
+
+        因此策略是：只要端口被占，就**精确定位占用者并清掉**，
+        而不是无差别地按映像名 taskkill（那样会误伤别的部署实例）。
+        """
         if not self._port_busy():
             return
-        if self.probe(timeout=2):
-            return
         if os.name != "nt":
+            log("[backend] 端口已被占用（非 Windows，不自动清理）。")
             return
-        log("[backend] 端口被残留进程占用，正在清理 sd-server.exe …")
-        try:
-            subprocess.run(["taskkill", "/IM", "sd-server.exe", "/F"],
-                           capture_output=True, timeout=20,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+        pids = self._port_owner_pids()
+        if not pids:
+            log("[backend] 端口被占用但定位不到进程，跳过清理。")
+            return
+
+        killed = 0
+        for pid in sorted(pids):
+            name = self._pid_image_name(pid)
+            # 安全阀：只动我们自己的引擎进程，绝不误杀别的程序
+            if not name.startswith(("sd-server", "sd-cli")):
+                log(f"[backend] PID={pid} ({name or '未知'}) 不是引擎进程，跳过。")
+                continue
+            log(f"[backend] 清理占用 {self.host}:{self.port} 的残留进程 PID={pid} ({name}) …")
+            try:
+                subprocess.run(["taskkill", "/PID", str(pid), "/F"],
+                               capture_output=True, timeout=20,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                killed += 1
+            except Exception as exc:
+                log(f"[backend] 清理 PID={pid} 失败: {exc}")
+        if killed:
             time.sleep(1.5)
-        except Exception as exc:
-            log(f"[backend] 清理失败: {exc}")
+        if self._port_busy():
+            log(f"[backend] 警告：{self.host}:{self.port} 仍被占用，启动可能失败。")
 
     # -- 就绪检测 ---------------------------------------------------------- #
     def alive(self):
@@ -1911,9 +1977,10 @@ def gpu_info():
             ps = ("$g = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -like '*NVIDIA*' } "
                   "| Select-Object -First 1; if ($g) { Write-Output ($g.Name + '|' + $g.DriverVersion) }")
             out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-                                 capture_output=True, text=True, timeout=20,
+                                 capture_output=True, timeout=20,
                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            text = (out.stdout or "").strip()
+            # 同样别用 text=True：中文 Windows 下输出可能是 GBK，按 UTF-8 解码会失败
+            text = (out.stdout or b"").decode("utf-8", "replace").strip()
             if "|" in text:
                 name, drv = text.split("|", 1)
                 info["name"] = name.strip()
