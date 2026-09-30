@@ -1,0 +1,29 @@
+{
+  "_comment": "模型搜索目录配置。修改这里即可切换模型库位置，无需改动 webui/config.json。相对路径按项目根目录解析，绝对路径原样使用。键名与 UI 中的分类一一对应。",
+
+  "checkpoints": [
+    "G:/SDwebUI/models/Stable-diffusion",
+    "models"
+  ],
+  "vae": [
+    "G:/SDwebUI/models/VAE"
+  ],
+  "text_encoder": [
+    "G:/SDwebUI/models/text_encoder",
+    "G:/SDwebUI/models/clip"
+  ],
+  "loras": [
+    "G:/SDwebUI/models/Lora",
+    "G:/SDwebUI/models/Lora2"
+  ],
+  "embeddings": [
+    "G:/SDwebUI/embeddings"
+  ],
+  "upscalers": [
+    "G:/MYXR_forgeUI_neo/sd-webui-forge-classic/models/ESRGAN",
+    "G:/SDwebUI/models/ESRGAN"
+  ],
+  "adetailer": [
+    "models/adetailer"
+  ]
+}

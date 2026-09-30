@@ -1,0 +1,60 @@
+# ===============================================================
+#  stable-diffusion.cpp Web UI  —  Git 忽略规则
+# ===============================================================
+
+# ---- 推理引擎与 CUDA 运行时（约 1.1GB，由 scripts/setup.py 下载到 bin/）----
+bin/
+
+# ---- 下载缓存（引擎 / cudart 压缩包，约 850MB）----
+.cache/
+
+# ---- 上游源码快照（leejet/stable-diffusion.cpp 参考代码，非本项目代码）----
+sd-src/
+
+# ---- 模型文件（体积大，自行放置或由 setup.py 下载）----
+models/*
+!models/.gitkeep
+!models/adetailer/
+models/adetailer/*
+!models/adetailer/.gitkeep
+
+# ---- 生成结果与历史记录 ----
+outputs/*
+!outputs/.gitkeep
+
+# ---- 运行日志 ----
+logs/*
+!logs/.gitkeep
+
+# ---- Web UI 运行时状态（记录当前选中的模型，与本机路径绑定）----
+webui/state.json
+
+# ---- 本地智能体工作区数据（非项目交付物）----
+.workbuddy-ai/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# ---- 编辑器 / IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 杂项 ----
+*.log
+*.tmp
+*.bak
+*~

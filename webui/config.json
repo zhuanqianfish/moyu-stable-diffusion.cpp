@@ -1,0 +1,38 @@
+{
+  "host": "127.0.0.1",
+  "port": 8080,
+
+  "backend": {
+    "host": "127.0.0.1",
+    "port": 1234,
+    "exe": "bin/sd-server.exe",
+    "cli_exe": "bin/sd-cli.exe",
+    "extra_args": ["--eager-load"],
+    "startup_timeout": 1800,
+    "log_level": "info",
+    "stream_console": true
+  },
+
+  "paths": {
+    "_comment": "模型搜索目录已迁移到项目根目录的 model_path.json，请在那里修改。此处仅作兜底，留空表示不覆盖。",
+    "checkpoints": [],
+    "vae": [],
+    "text_encoder": [],
+    "loras": [],
+    "embeddings": [],
+    "upscalers": [],
+    "adetailer": []
+  },
+
+  "defaults": {
+    "width": 512,
+    "height": 512,
+    "sample_steps": 20,
+    "txt_cfg": 7.0,
+    "sample_method": "euler_a",
+    "scheduler": "discrete",
+    "batch_count": 1
+  },
+
+  "open_browser": true
+}
