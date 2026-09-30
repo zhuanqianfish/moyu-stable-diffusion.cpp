@@ -1393,6 +1393,10 @@ async function autoMatchCompanions(ckpt){
   try{
     const d = await api("/api/model-config?checkpoint=" + encodeURIComponent(ckpt));
     if(PENDING.checkpoint !== ckpt) return;      // 期间又换了模型，丢弃这次结果
+    // 后端必须回报「这份推荐是给哪个模型算的」。对不上就说明是旧版服务
+    // （会忽略 ?checkpoint=，返回当前已保存模型的推荐），此时宁可不套用，
+    // 也不能把 A 模型的配套误装到 B 模型上。
+    if(d.suggest_for !== ckpt) return;
     const s = d.suggest || {};
     Object.keys(s).forEach(k => { if(k in PENDING) PENDING[k] = s[k] || ""; });
     renderModelPane();

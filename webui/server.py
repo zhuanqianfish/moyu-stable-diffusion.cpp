@@ -1514,10 +1514,14 @@ class Handler(BaseHTTPRequestHandler):
             # ?checkpoint= 可传入「候选」大模型路径，让前端在还没保存前就能
             # 拿到该模型族的推荐配套组件（用于切换模型时自动匹配）。
             cand = (query.get("checkpoint") or [""])[0]
+            target = cand or STATE.get("checkpoint") or ""
             return self._send(200, {
                 "state": STATE,
                 "command": BACKEND.build_cmd(),
-                "suggest": suggest_companions(cand or STATE.get("checkpoint") or ""),
+                # suggest_for 标明这份推荐是给哪个模型算的；前端据此校验，
+                # 避免把 A 模型的推荐误套到 B 模型上。
+                "suggest_for": target,
+                "suggest": suggest_companions(target),
             })
 
         if path == "/api/loras":
