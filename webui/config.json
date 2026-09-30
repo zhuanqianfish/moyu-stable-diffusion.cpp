@@ -7,7 +7,8 @@
     "port": 1234,
     "exe": "bin/sd-server.exe",
     "cli_exe": "bin/sd-cli.exe",
-    "extra_args": ["--eager-load"],
+    "extra_args": ["--eager-load", "--diffusion-fa"],
+    "_extra_args_comment": "引擎附加参数。--diffusion-fa = 扩散模型启用 Flash Attention，实测 SDXL/Qwen-Image 均提速约 30%。若某模型出现异常可临时去掉。",
     "startup_timeout": 1800,
     "log_level": "info",
     "stream_console": true

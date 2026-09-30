@@ -471,6 +471,21 @@ def detect_family(name):
     return "unknown"
 
 
+# 各模型族**实际会用到**的独立组件。
+# 给 SDXL 挂一个 LLM、或给 SD1.5 挂 t5xxl，引擎会照样把它们载入显存，
+# 纯属浪费（一个 Qwen LLM 就有 5GB）——切换模型后残留的旧组件更是如此。
+# 装命令时按族裁剪，既省显存也省加载时间。
+FAMILY_COMPONENTS = {
+    "sd15":       set(),                                  # 文本编码器与 VAE 全部内置
+    "sd21":       set(),
+    "sdxl":       {"vae"},                                # SDXL 自带双 CLIP
+    "sd3":        {"vae", "clip_l", "clip_g", "t5xxl"},
+    "flux":       {"vae", "clip_l", "t5xxl"},
+    "qwen-image": {"vae", "llm"},
+    # unknown 不在此表中：识别不出来时保持原样，不做裁剪
+}
+
+
 # 完整 checkpoint 里一定带文本编码器；只有这些前缀的键才说明它是「完整模型」
 _FULL_MODEL_MARKERS = (
     "cond_stage_model.", "conditioner.", "text_encoder", "text_encoders.",
@@ -612,7 +627,9 @@ class Backend:
             else:
                 cmd += ["-m", ckpt]
 
-        # 可选的独立组件
+        # 可选的独立组件（按模型族裁剪，避免残留组件白占显存）
+        fam = detect_family(os.path.basename(ckpt)) if ckpt else "unknown"
+        allowed = FAMILY_COMPONENTS.get(fam)
         optional = [
             ("vae", "--vae"),
             ("clip_l", "--clip_l"),
@@ -622,8 +639,12 @@ class Backend:
         ]
         for key, flag in optional:
             val = resolve(st.get(key) or "")
-            if val and os.path.exists(val):
-                cmd += [flag, val]
+            if not (val and os.path.exists(val)):
+                continue
+            if allowed is not None and key not in allowed:
+                log(f"[config] {fam} 用不到 {key}，已跳过: {os.path.basename(val)}")
+                continue
+            cmd += [flag, val]
 
         lora_dir = active_lora_dir()
         if lora_dir and os.path.isdir(lora_dir):
@@ -1490,10 +1511,13 @@ class Handler(BaseHTTPRequestHandler):
             })
 
         if path == "/api/model-config":
+            # ?checkpoint= 可传入「候选」大模型路径，让前端在还没保存前就能
+            # 拿到该模型族的推荐配套组件（用于切换模型时自动匹配）。
+            cand = (query.get("checkpoint") or [""])[0]
             return self._send(200, {
                 "state": STATE,
                 "command": BACKEND.build_cmd(),
-                "suggest": suggest_companions(STATE.get("checkpoint") or ""),
+                "suggest": suggest_companions(cand or STATE.get("checkpoint") or ""),
             })
 
         if path == "/api/loras":

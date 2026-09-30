@@ -948,6 +948,8 @@ function renderModelPane(){
       row.onclick = () => {
         PENDING[MM_TAB] = row.dataset.abs || "";
         renderModelPane();
+        // 换大模型时自动套用该族的配套组件，避免残留上一个模型的 VAE/LLM
+        if(MM_TAB === "checkpoint") autoMatchCompanions(PENDING.checkpoint);
       };
     });
   }
@@ -1383,6 +1385,22 @@ $("mRefresh").onclick = async () => {
   renderModelPane();
   toast("已刷新模型列表", "ok");
 };
+/* 切换大模型时自动套用该族的推荐配套组件。
+   否则切到 SDXL 后，上一个 Qwen 模型的 LLM(5GB)/VAE 会一直挂在启动参数里，
+   白占显存、拖慢加载。失败则静默，用户仍可手动点「自动匹配」。 */
+async function autoMatchCompanions(ckpt){
+  if(!ckpt) return;
+  try{
+    const d = await api("/api/model-config?checkpoint=" + encodeURIComponent(ckpt));
+    if(PENDING.checkpoint !== ckpt) return;      // 期间又换了模型，丢弃这次结果
+    const s = d.suggest || {};
+    Object.keys(s).forEach(k => { if(k in PENDING) PENDING[k] = s[k] || ""; });
+    renderModelPane();
+    refreshLoadModeHint();
+    toast("已自动匹配该模型族的配套组件，请确认后保存", "ok");
+  }catch(e){ /* 静默失败 */ }
+}
+
 $("mmAuto").onclick = async () => {
   if(!PENDING.checkpoint){ toast("请先选择大模型", "err"); return; }
   try{
