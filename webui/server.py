@@ -455,8 +455,14 @@ FAMILY_RULES = [
     ("qwen-image", ("qwen-image", "qwen_image", "qwenimage")),
     ("flux", ("flux",)),
     ("sd3", ("sd3", "sd-3")),
+    # animagine 是 SDXL 系模型，必须排在 anima 之前判断 —— 匹配是子串包含，
+    # "animagine" 也含 "anima"，顺序反了就会把 SDXL 模型错判成 Anima。
+    ("sdxl", ("animagine",)),
+    # Anima 是独立 DiT 架构（sd.cpp 有原生 VERSION_ANIMA，靠 llm_adapter 识别），
+    # 需要单独的 LLM 文本编码器，不能和 SDXL 混为一谈。
+    ("anima", ("anima",)),
     ("sdxl", ("xl", "illustrious", "noob", "pony", "wai", "realill",
-              "chenkin", "oneobsession", "animagine", "anima")),
+              "chenkin", "oneobsession")),
     ("sd15", ("v1-5", "v1_5", "sd15", "sd-1.5", "anything", "majicmix")),
     ("sd21", ("2-1", "2_1", "sd21")),
 ]
@@ -482,6 +488,10 @@ FAMILY_COMPONENTS = {
     "sd3":        {"vae", "clip_l", "clip_g", "t5xxl"},
     "flux":       {"vae", "clip_l", "t5xxl"},
     "qwen-image": {"vae", "llm"},
+    # Anima 官方示例：
+    #   --vae qwen_image_vae.safetensors --llm qwen_3_06b_base.safetensors
+    # 少了 --llm 会直接报 "model metadata validation failed" 然后引擎退出。
+    "anima":      {"vae", "llm"},
     # unknown 不在此表中：识别不出来时保持原样，不做裁剪
 }
 
@@ -551,6 +561,18 @@ def suggest_companions(checkpoint_abs):
     if fam == "qwen-image":
         out["vae"] = pick(cats["vae"], ["qwen"]) or pick(cats["vae"], ["ae"]) 
         out["llm"] = pick(cats["text_encoder"], ["qwen"])
+        out["clip_l"] = ""
+        out["t5xxl"] = ""
+        out["clip_g"] = ""
+    elif fam == "anima":
+        # Anima 官方示例用的是 qwen_image_vae + qwen_3_06b_base。
+        # 注意 VAE 要精确匹配 "qwen_image_vae"，别被 qwen_image_2.1_vae 抢走。
+        out["vae"] = (pick(cats["vae"], ["qwen_image_vae"])
+                      or pick(cats["vae"], ["qwen"])
+                      or pick(cats["vae"], ["ae"]))
+        out["llm"] = (pick(cats["text_encoder"], ["qwen_3_06b"])
+                      or pick(cats["text_encoder"], ["qwen_3"])
+                      or pick(cats["text_encoder"], ["qwen"]))
         out["clip_l"] = ""
         out["t5xxl"] = ""
         out["clip_g"] = ""
